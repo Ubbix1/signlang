@@ -1,0 +1,138 @@
+/* SignAI - Custom CSS Styles */
+
+/* Global Styles */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.content {
+    flex: 1;
+}
+
+footer {
+    margin-top: auto;
+}
+
+/* Card styles */
+.card {
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+}
+
+/* Video container for webcam */
+.video-container {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hand-landmarks {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* Result container */
+.result-container {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 300px;
+}
+
+/* User role badge */
+.badge {
+    font-size: 0.8rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Table styles */
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.075);
+}
+
+/* Navigation active link */
+.nav-link.active {
+    font-weight: 500;
+}
+
+/* Login/Register Forms */
+.auth-form {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Custom button hover effects */
+.btn-outline-primary:hover {
+    color: #fff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .display-4 {
+        font-size: 2rem;
+    }
+    
+    .table th, .table td {
+        padding: 0.5rem;
+    }
+}
+
+/* Prediction result styling */
+#prediction-label {
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.progress {
+    height: 25px;
+    border-radius: 30px;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.progress-bar {
+    border-radius: 30px;
+    font-weight: 600;
+}
+
+/* Stats cards */
+.stats-card {
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.stats-card .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: var(--bs-primary);
+}
+
+.stats-card .count {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stats-card .label {
+    color: var(--bs-secondary);
+    font-size: 1rem;
+}
+
+/* Chart containers */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}

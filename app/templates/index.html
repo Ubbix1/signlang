@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignAI - Sign Language Recognition</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-hands"></i> SignAI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login.html">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/register.html">Register</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="py-5 bg-primary text-white text-center">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <h1 class="display-4">Sign Language Recognition with AI</h1>
+                    <p class="lead mb-4">SignAI uses machine learning to recognize sign language gestures in real-time, bridging communication gaps for the deaf and hard of hearing community.</p>
+                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                        <a href="/login.html" class="btn btn-outline-light btn-lg px-4 me-sm-3">Login</a>
+                        <a href="/register.html" class="btn btn-light btn-lg px-4">Register</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-video fa-3x mb-3 text-primary"></i>
+                            <h4 class="card-title">Real-time Recognition</h4>
+                            <p class="card-text">Our advanced AI model recognizes sign language gestures in real-time from your device's camera.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-history fa-3x mb-3 text-primary"></i>
+                            <h4 class="card-title">History Tracking</h4>
+                            <p class="card-text">Keep track of all your recognized gestures with a comprehensive history log.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-mobile-alt fa-3x mb-3 text-primary"></i>
+                            <h4 class="card-title">Mobile Integration</h4>
+                            <p class="card-text">Seamless integration with our Flutter mobile app for on-the-go sign language translation.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <h2 class="text-center mb-5">How It Works</h2>
+            <div class="row g-4">
+                <div class="col-md-3 text-center">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-user-plus fa-2x"></i>
+                    </div>
+                    <h4>1. Register</h4>
+                    <p>Create an account to get started with SignAI.</p>
+                </div>
+                
+                <div class="col-md-3 text-center">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-camera fa-2x"></i>
+                    </div>
+                    <h4>2. Capture</h4>
+                    <p>Use your device's camera to capture sign language gestures.</p>
+                </div>
+                
+                <div class="col-md-3 text-center">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-brain fa-2x"></i>
+                    </div>
+                    <h4>3. Analyze</h4>
+                    <p>Our AI model analyzes the gestures in real-time.</p>
+                </div>
+                
+                <div class="col-md-3 text-center">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                    <h4>4. Translate</h4>
+                    <p>Get instant translations of sign language gestures.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- API Information Section -->
+    <section class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">API Integration</h2>
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h3>For Developers</h3>
+                    <p>SignAI provides a comprehensive RESTful API for integration with your applications. Our API endpoints allow you to:</p>
+                    <ul>
+                        <li>Authenticate users securely with JWT</li>
+                        <li>Send hand landmark data for prediction</li>
+                        <li>Receive real-time sign language translations</li>
+                        <li>Access user history and other user data</li>
+                    </ul>
+                    <p>All endpoints are secured and follow best practices for API development.</p>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card bg-dark">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Example API Request</span>
+                        </div>
+                        <div class="card-body">
+                            <pre class="mb-0 text-white"><code>
+POST /api/prediction/predict
+Content-Type: application/json
+Authorization: Bearer &lt;your_token&gt;
+
+{
+  "landmarks": [
+    [0.1, 0.2], [0.3, 0.4], ...
+  ],
+  "save_result": true
+}
+                            </code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-4 bg-dark text-white">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>SignAI</h5>
+                    <p>Breaking communication barriers with AI-powered sign language recognition.</p>
+                </div>
+                <div class="col-md-3">
+                    <h5>Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/" class="text-white">Home</a></li>
+                        <li><a href="/login.html" class="text-white">Login</a></li>
+                        <li><a href="/register.html" class="text-white">Register</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>Contact</h5>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-envelope me-2"></i> info@signai.com</li>
+                        <li><i class="fas fa-phone me-2"></i> (123) 456-7890</li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <p class="mb-0">&copy; 2023 SignAI. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

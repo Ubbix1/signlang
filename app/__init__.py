@@ -1,0 +1,79 @@
+from flask import Flask
+from flask_cors import CORS
+import os
+import logging
+import importlib.util
+
+from app.config import DevelopmentConfig, ProductionConfig
+from app.database.db_sql import initialize_db
+from app.database.sql_models import db
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Check if ML libraries are available
+ML_AVAILABLE = False
+try:
+    import tensorflow as tf
+    import mediapipe as mp
+    ML_AVAILABLE = True
+    logger.info("ML libraries found, machine learning features will be available")
+except ImportError:
+    logger.warning("ML libraries not found, machine learning features will be disabled")
+
+def create_app(config_class=DevelopmentConfig):
+    """Application factory function to create and configure the Flask app"""
+    app = Flask(__name__)
+    
+    # Load configuration
+    if os.environ.get('FLASK_ENV') == 'production':
+        app.config.from_object(ProductionConfig)
+    else:
+        app.config.from_object(DevelopmentConfig)
+    
+    # Set secret key from environment variable
+    app.secret_key = os.environ.get("SESSION_SECRET")
+    
+    # Enable CORS
+    CORS(app)
+    
+    # Initialize SQLAlchemy database connection
+    initialize_db(app)
+    
+    # Load ML model (will be initialized on first request)
+    with app.app_context():
+        app.ml_model = None  # Placeholder, will be loaded lazily
+    
+    # Register blueprints
+    from app.auth.routes import auth_bp
+    from app.routes.user_routes import user_bp
+    from app.routes.admin_routes import admin_bp
+    from app.routes.prediction_routes import prediction_bp
+    
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(user_bp, url_prefix='/api/user')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(prediction_bp, url_prefix='/api/prediction')
+    
+    # Register default route
+    @app.route('/')
+    def index():
+        from flask import render_template
+        return render_template('index.html')
+    
+    # Register error handlers
+    @app.errorhandler(404)
+    def not_found(error):
+        from flask import jsonify
+        return jsonify({"error": "Not found"}), 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        from flask import jsonify
+        logger.error(f"Internal server error: {error}")
+        return jsonify({"error": "Internal server error"}), 500
+    
+    logger.info("Application initialized successfully")
+    return app
