@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.jwt_required import jwt_required
-from app.database.db_sql import get_db, create_prediction, get_user_predictions, delete_prediction as delete_prediction_sql
-from app.database.sql_models import Prediction
+from app.database.db import get_db, create_prediction, get_user_predictions, delete_prediction
 from app.inference.predict import predict_from_base64, predict_from_landmarks
 import logging
 import datetime
@@ -17,7 +16,13 @@ def predict(current_user):
     Make a prediction from an image
     Expects either base64 encoded image or hand landmarks
     """
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON or no data provided"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in prediction request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
     
     # Get user ID
     user_id = current_user['user_id']
@@ -51,14 +56,19 @@ def predict(current_user):
     
     # Store prediction in database if requested
     if data.get('save_result', True):
-        # Extract relevant data from prediction_result
-        create_prediction(
-            user_id=user_id,
-            label=prediction_result['label'],
-            confidence=prediction_result['confidence'],
-            class_id=prediction_result.get('class_id'),
-            metadata=prediction_result
-        )
+        try:
+            # Extract relevant data from prediction_result
+            prediction_id = create_prediction(
+                user_id=user_id,
+                label=prediction_result['label'],
+                confidence=prediction_result['confidence'],
+                class_id=prediction_result.get('class_id'),
+                metadata=prediction_result
+            )
+            prediction_result['id'] = prediction_id
+        except Exception as e:
+            logger.error(f"Error saving prediction to database: {e}")
+            prediction_result['saved'] = False
     
     return jsonify(prediction_result), 200
 
@@ -69,7 +79,13 @@ def bulk_predict(current_user):
     Process multiple frames for prediction
     Expects an array of base64 images or landmarks
     """
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON or no data provided"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in bulk prediction request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
     
     # Get user ID
     user_id = current_user['user_id']
@@ -156,17 +172,22 @@ def bulk_predict(current_user):
         
         # Store majority prediction in database if requested
         if data.get('save_result', True):
-            # Extract relevant data from majority_result
-            create_prediction(
-                user_id=user_id,
-                label=majority_label,
-                confidence=majority_result['confidence'],
-                metadata={
-                    'count': majority_result['count'],
-                    'total_frames': majority_result['total_frames'],
-                    'results': results
-                }
-            )
+            try:
+                # Extract relevant data from majority_result
+                prediction_id = create_prediction(
+                    user_id=user_id,
+                    label=majority_label,
+                    confidence=majority_result['confidence'],
+                    metadata={
+                        'count': majority_result['count'],
+                        'total_frames': majority_result['total_frames'],
+                        'results': results
+                    }
+                )
+                majority_result['id'] = prediction_id
+            except Exception as e:
+                logger.error(f"Error saving bulk prediction to database: {e}")
+                majority_result['saved'] = False
         
         # Return all results and the majority prediction
         return jsonify({
@@ -189,34 +210,28 @@ def get_prediction_history(current_user):
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 10))
     
-    # Get predictions for the user with pagination using SQLAlchemy
-    result = get_user_predictions(user_id, page, per_page)
-    
-    return jsonify(result), 200
+    try:
+        # Get predictions for the user with pagination using Firestore
+        result = get_user_predictions(user_id, page, per_page)
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error retrieving prediction history: {e}")
+        return jsonify({"error": f"Failed to retrieve prediction history: {str(e)}"}), 500
 
 @prediction_bp.route('/history/<prediction_id>', methods=['DELETE'])
 @jwt_required
-def delete_prediction(current_user, prediction_id):
+def delete_prediction_endpoint(current_user, prediction_id):
     """Delete a specific prediction"""
     user_id = current_user['user_id']
     
     try:
-        # Convert ID to integer
-        prediction_id_int = int(prediction_id)
+        # Delete prediction from Firestore
+        success = delete_prediction(prediction_id, user_id)
         
-        # Delete prediction using SQLAlchemy
-        result = delete_prediction_sql(prediction_id_int, user_id)
-        
-        if result:
-            return jsonify({
-                "message": "Prediction deleted successfully"
-            }), 200
+        if success:
+            return jsonify({"message": "Prediction deleted successfully"}), 200
         else:
-            return jsonify({"error": "Prediction not found or access denied"}), 404
-            
-    except ValueError:
-        logger.error(f"Invalid prediction ID format: {prediction_id}")
-        return jsonify({"error": "Invalid prediction ID format"}), 400
+            return jsonify({"error": "Prediction not found or you don't have permission to delete it"}), 404
     except Exception as e:
         logger.error(f"Error deleting prediction: {e}")
-        return jsonify({"error": "Failed to delete prediction"}), 500
+        return jsonify({"error": f"Failed to delete prediction: {str(e)}"}), 500

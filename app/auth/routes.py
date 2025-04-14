@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, current_app
 import datetime
 import jwt
-from app.database.sql_models import User
-from app.database.db_sql import get_db, create_user, get_user_by_email, get_user_by_id
-from app.auth.utils import check_password, generate_token
+import bcrypt
+from app.database.db import get_db, create_user, get_user_by_email, get_user_by_id
+from app.auth.utils import generate_token
 from app.middleware.jwt_required import jwt_required
 import logging
 
@@ -13,7 +13,13 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """Register a new user"""
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON or no data provided"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in registration request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
     
     # Validate required fields
     required_fields = ['email', 'password', 'name']
@@ -33,23 +39,30 @@ def register():
         if role == 'admin' and not current_app.config.get('DEBUG', False):
             logger.warning(f"Attempt to create admin user from non-debug environment: {data['email']}")
             role = 'user'
+
+        # Hash the password before storing it
+        password = data['password']
+        if isinstance(password, str):
+            password = password.encode('utf-8')
+        hashed_password = bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
             
-        new_user = create_user(
+        # Create new user in Firestore
+        user_id = create_user(
             email=data['email'],
-            password=data['password'],  # Password will be hashed in the model
+            password=hashed_password,
             name=data['name'],
             role=role
         )
         
         # Generate tokens
         access_token = generate_token(
-            {"user_id": new_user.id, "role": new_user.role},
+            {"user_id": user_id, "role": role},
             current_app.config['JWT_SECRET_KEY'],
             current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
         )
         
         refresh_token = generate_token(
-            {"user_id": new_user.id},
+            {"user_id": user_id},
             current_app.config['JWT_SECRET_KEY'],
             current_app.config['JWT_REFRESH_TOKEN_EXPIRES']
         )
@@ -59,20 +72,26 @@ def register():
             "access_token": access_token,
             "refresh_token": refresh_token,
             "user": {
-                "id": new_user.id,
-                "email": new_user.email,
-                "name": new_user.name,
-                "role": new_user.role
+                "id": user_id,
+                "email": data['email'],
+                "name": data['name'],
+                "role": role
             }
         }), 201
     except Exception as e:
         logger.error(f"Failed to register user: {e}")
-        return jsonify({"error": "Failed to register user"}), 500
+        return jsonify({"error": f"Failed to register user: {str(e)}"}), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """Login an existing user"""
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON or no data provided"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in login request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
     
     # Validate required fields
     if 'email' not in data or 'password' not in data:
@@ -83,19 +102,27 @@ def login():
     if not user:
         return jsonify({"error": "Invalid email or password"}), 401
     
-    # Check password using the model's method
-    if not user.check_password(data['password']):
+    # Check password
+    password = data['password']
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    
+    stored_password = user['password']
+    if isinstance(stored_password, str):
+        stored_password = stored_password.encode('utf-8')
+        
+    if not bcrypt.checkpw(password, stored_password):
         return jsonify({"error": "Invalid email or password"}), 401
     
     # Generate tokens
     access_token = generate_token(
-        {"user_id": user.id, "role": user.role},
+        {"user_id": user['id'], "role": user['role']},
         current_app.config['JWT_SECRET_KEY'],
         current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
     )
     
     refresh_token = generate_token(
-        {"user_id": user.id},
+        {"user_id": user['id']},
         current_app.config['JWT_SECRET_KEY'],
         current_app.config['JWT_REFRESH_TOKEN_EXPIRES']
     )
@@ -105,17 +132,23 @@ def login():
         "access_token": access_token,
         "refresh_token": refresh_token,
         "user": {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role
+            "id": user['id'],
+            "email": user['email'],
+            "name": user['name'],
+            "role": user['role']
         }
     }), 200
 
 @auth_bp.route('/refresh-token', methods=['POST'])
 def refresh_token():
     """Refresh access token using refresh token"""
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON or no data provided"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in refresh token request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
     
     if 'refresh_token' not in data:
         return jsonify({"error": "Refresh token is required"}), 400
@@ -135,7 +168,7 @@ def refresh_token():
         
         # Generate new access token
         access_token = generate_token(
-            {"user_id": user.id, "role": user.role},
+            {"user_id": user['id'], "role": user['role']},
             current_app.config['JWT_SECRET_KEY'],
             current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
         )
@@ -159,9 +192,10 @@ def get_user_profile(current_user):
     if not user:
         return jsonify({"error": "User not found"}), 404
     
-    # Convert to dictionary (excluding password)
-    user_data = user.to_dict()
+    # Remove password from user data
+    if 'password' in user:
+        del user['password']
     
     return jsonify({
-        "user": user_data
+        "user": user
     }), 200

@@ -1,12 +1,11 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 import os
 import logging
 import importlib.util
 
 from app.config import DevelopmentConfig, ProductionConfig
-from app.database.db_sql import initialize_db
-from app.database.sql_models import db
+from app.database.db import initialize_db
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG,
@@ -34,12 +33,21 @@ def create_app(config_class=DevelopmentConfig):
         app.config.from_object(DevelopmentConfig)
     
     # Set secret key from environment variable
-    app.secret_key = os.environ.get("SESSION_SECRET")
+    app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
     
-    # Enable CORS
-    CORS(app)
+    # Enable CORS with more specific configuration
+    CORS(app, resources={r"/api/*": {"origins": "*", "supports_credentials": True, "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]}})
     
-    # Initialize SQLAlchemy database connection
+    # Add JSON error handling for proper responses
+    @app.errorhandler(400)
+    def bad_request(error):
+        return jsonify({"error": "Bad request", "message": str(error)}), 400
+    
+    @app.errorhandler(405)
+    def method_not_allowed(error):
+        return jsonify({"error": "Method not allowed"}), 405
+    
+    # Initialize Firestore database connection
     initialize_db(app)
     
     # Load ML model (will be initialized on first request)
@@ -66,12 +74,10 @@ def create_app(config_class=DevelopmentConfig):
     # Register error handlers
     @app.errorhandler(404)
     def not_found(error):
-        from flask import jsonify
         return jsonify({"error": "Not found"}), 404
     
     @app.errorhandler(500)
     def internal_error(error):
-        from flask import jsonify
         logger.error(f"Internal server error: {error}")
         return jsonify({"error": "Internal server error"}), 500
     

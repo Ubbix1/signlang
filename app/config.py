@@ -7,10 +7,8 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
     JWT_REFRESH_TOKEN_EXPIRES = 2592000  # 30 days
     
-    # Database Settings
-    DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/signai_db')
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Firebase Settings
+    FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json')
     
     # Model Settings
     MODEL_PATH = os.environ.get('MODEL_PATH', './model/sign_language_model.h5')
@@ -32,9 +30,6 @@ class ProductionConfig(Config):
     # In production, ensure all secrets are properly set in environment variables
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
     
-    # Ensure Database URI is properly set
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-    
     # Set more strict security settings for production
     JWT_COOKIE_SECURE = True
     JWT_COOKIE_CSRF_PROTECT = True
@@ -42,5 +37,4 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
-    # Use a test database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test_signai_db')
+    FIREBASE_CREDENTIALS_PATH = os.environ.get('TEST_FIREBASE_CREDENTIALS_PATH', 'signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json')

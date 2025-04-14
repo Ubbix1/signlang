@@ -10,3 +10,4 @@ bcrypt
 numpy
 tensorflow
 mediapipe
+firebase-admin

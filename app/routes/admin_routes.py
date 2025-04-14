@@ -1,8 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.jwt_required import jwt_required, admin_required
-from app.database.db_sql import get_db
-from app.database.sql_models import User, Prediction
-from sqlalchemy import func, desc, extract
+from app.database.db import get_db
+from firebase_admin import firestore
 import logging
 from datetime import datetime, timedelta
 import json
@@ -17,64 +16,96 @@ def admin_dashboard(current_user):
     """Get admin dashboard statistics"""
     db = get_db()
     
-    # Get statistics using SQLAlchemy
-    total_users = User.query.count()
-    total_predictions = Prediction.query.count()
-    
-    # Get recent users
-    recent_users_query = User.query.order_by(User.created_at.desc()).limit(5).all()
-    recent_users_list = [user.to_dict() for user in recent_users_query]
-    
-    # Get recent predictions
-    recent_predictions_query = Prediction.query.order_by(Prediction.timestamp.desc()).limit(5).all()
-    recent_predictions_list = [prediction.to_dict() for prediction in recent_predictions_query]
-    
-    # Get predictions by day for the past week
-    one_week_ago = datetime.utcnow() - timedelta(days=7)
-    
-    predictions_by_day = db.session.query(
-        extract('year', Prediction.timestamp).label('year'),
-        extract('month', Prediction.timestamp).label('month'),
-        extract('day', Prediction.timestamp).label('day'),
-        func.count(Prediction.id).label('count')
-    ).filter(
-        Prediction.timestamp >= one_week_ago
-    ).group_by(
-        'year', 'month', 'day'
-    ).order_by(
-        'year', 'month', 'day'
-    ).all()
-    
-    predictions_chart_data = []
-    for item in predictions_by_day:
-        date_str = f"{int(item.year)}-{int(item.month):02d}-{int(item.day):02d}"
-        predictions_chart_data.append({
-            "date": date_str,
-            "count": item.count
-        })
-    
-    # Get most common predictions
-    common_predictions_data = db.session.query(
-        Prediction.label.label('_id'),
-        func.count(Prediction.id).label('count')
-    ).group_by(
-        Prediction.label
-    ).order_by(
-        func.count(Prediction.id).desc()
-    ).limit(10).all()
-    
-    common_predictions = [{"_id": item._id, "count": item.count} for item in common_predictions_data]
-    
-    return jsonify({
-        "statistics": {
-            "total_users": total_users,
-            "total_predictions": total_predictions
-        },
-        "recent_users": recent_users_list,
-        "recent_predictions": recent_predictions_list,
-        "predictions_by_day": predictions_chart_data,
-        "common_predictions": common_predictions
-    }), 200
+    try:
+        # Get total users
+        users_ref = db.collection('users')
+        total_users = len(list(users_ref.get()))
+        
+        # Get total predictions
+        predictions_ref = db.collection('predictions')
+        total_predictions = len(list(predictions_ref.get()))
+        
+        # Get recent users
+        recent_users_query = users_ref.order_by('created_at', direction=firestore.Query.DESCENDING).limit(5)
+        recent_users = list(recent_users_query.get())
+        recent_users_list = []
+        for user in recent_users:
+            user_data = user.to_dict()
+            user_data['id'] = user.id
+            # Remove password for security
+            if 'password' in user_data:
+                del user_data['password']
+            recent_users_list.append(user_data)
+        
+        # Get recent predictions
+        recent_predictions_query = predictions_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(5)
+        recent_predictions = list(recent_predictions_query.get())
+        recent_predictions_list = []
+        for prediction in recent_predictions:
+            prediction_data = prediction.to_dict()
+            prediction_data['id'] = prediction.id
+            recent_predictions_list.append(prediction_data)
+        
+        # Get predictions by day for the past week
+        one_week_ago = datetime.utcnow() - timedelta(days=7)
+        
+        # This is different in Firestore - we'll get all predictions for the past week
+        # and then group them by date manually
+        predictions_week_query = predictions_ref.where('timestamp', '>=', one_week_ago).get()
+        
+        # Group by day
+        predictions_by_day = {}
+        for prediction in predictions_week_query:
+            prediction_data = prediction.to_dict()
+            timestamp = prediction_data.get('timestamp')
+            
+            # Handle server timestamp
+            if isinstance(timestamp, datetime):
+                date_str = timestamp.strftime('%Y-%m-%d')
+                predictions_by_day[date_str] = predictions_by_day.get(date_str, 0) + 1
+            
+        # Convert to chart data format
+        predictions_chart_data = []
+        for date_str, count in predictions_by_day.items():
+            predictions_chart_data.append({
+                "date": date_str,
+                "count": count
+            })
+        
+        # Sort by date
+        predictions_chart_data.sort(key=lambda x: x["date"])
+        
+        # Get most common predictions
+        all_predictions = list(predictions_ref.get())
+        label_counts = {}
+        
+        for prediction in all_predictions:
+            prediction_data = prediction.to_dict()
+            label = prediction_data.get('label')
+            if label:
+                label_counts[label] = label_counts.get(label, 0) + 1
+        
+        # Convert to list and sort by count
+        common_predictions = [{"_id": label, "count": count} for label, count in label_counts.items()]
+        common_predictions.sort(key=lambda x: x["count"], reverse=True)
+        
+        # Limit to top 10
+        common_predictions = common_predictions[:10]
+        
+        return jsonify({
+            "statistics": {
+                "total_users": total_users,
+                "total_predictions": total_predictions
+            },
+            "recent_users": recent_users_list,
+            "recent_predictions": recent_predictions_list,
+            "predictions_by_day": predictions_chart_data,
+            "common_predictions": common_predictions
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard data: {e}")
+        return jsonify({"error": f"Error getting dashboard data: {str(e)}"}), 500
 
 @admin_bp.route('/users', methods=['GET'])
 @jwt_required
@@ -87,24 +118,47 @@ def get_users(current_user):
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 10))
     
-    # Get total count for pagination
-    total_count = User.query.count()
-    
-    # Get users with pagination using SQLAlchemy
-    users = User.query.order_by(User.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
-    
-    # Convert to dict format
-    user_list = [user.to_dict() for user in users]
-    
-    return jsonify({
-        "users": user_list,
-        "pagination": {
-            "total": total_count,
-            "page": page,
-            "per_page": per_page,
-            "pages": (total_count + per_page - 1) // per_page
-        }
-    }), 200
+    try:
+        # Get all users for count
+        users_ref = db.collection('users')
+        all_users = list(users_ref.get())
+        total_count = len(all_users)
+        
+        # Sort by created_at descending
+        users_query = users_ref.order_by('created_at', direction=firestore.Query.DESCENDING)
+        
+        # Get paginated users - Firestore doesn't support offset directly
+        # So we'll get all and manually paginate
+        users = list(users_query.get())
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        
+        # Get the page slice
+        page_users = users[start_idx:end_idx] if start_idx < len(users) else []
+        
+        # Convert to dict format
+        user_list = []
+        for user in page_users:
+            user_data = user.to_dict()
+            user_data['id'] = user.id
+            # Remove password for security
+            if 'password' in user_data:
+                del user_data['password']
+            user_list.append(user_data)
+        
+        return jsonify({
+            "users": user_list,
+            "pagination": {
+                "total": total_count,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total_count + per_page - 1) // per_page if total_count > 0 else 0
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting users: {e}")
+        return jsonify({"error": f"Error getting users: {str(e)}"}), 500
 
 @admin_bp.route('/users/<user_id>', methods=['GET'])
 @jwt_required
@@ -114,34 +168,41 @@ def get_user(current_user, user_id):
     db = get_db()
     
     try:
-        # Convert user_id to integer
-        user_id_int = int(user_id)
-        
         # Get user by ID
-        user = User.query.get(user_id_int)
+        user_ref = db.collection('users').document(user_id)
+        user = user_ref.get()
         
-        if not user:
+        if not user.exists:
             return jsonify({"error": "User not found"}), 404
         
         # Convert user to dictionary
         user_data = user.to_dict()
+        user_data['id'] = user.id
+        
+        # Remove password for security
+        if 'password' in user_data:
+            del user_data['password']
         
         # Get user's prediction count
-        prediction_count = Prediction.query.filter_by(user_id=user_id_int).count()
+        predictions_query = db.collection('predictions').where('user_id', '==', user_id).get()
+        prediction_count = len(list(predictions_query))
         user_data['prediction_count'] = prediction_count
         
         # Get user's recent predictions
-        recent_predictions = Prediction.query.filter_by(user_id=user_id_int).order_by(Prediction.timestamp.desc()).limit(5).all()
+        recent_predictions_query = db.collection('predictions').where('user_id', '==', user_id).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(5)
+        recent_predictions = list(recent_predictions_query.get())
         
         # Convert predictions to dictionary format
-        prediction_list = [prediction.to_dict() for prediction in recent_predictions]
+        prediction_list = []
+        for prediction in recent_predictions:
+            prediction_data = prediction.to_dict()
+            prediction_data['id'] = prediction.id
+            prediction_list.append(prediction_data)
+        
         user_data['recent_predictions'] = prediction_list
         
         return jsonify(user_data), 200
         
-    except ValueError:
-        logger.error(f"Invalid user ID format: {user_id}")
-        return jsonify({"error": "Invalid user ID format"}), 400
     except Exception as e:
         logger.error(f"Error retrieving user: {e}")
         return jsonify({"error": f"Error retrieving user: {str(e)}"}), 500
@@ -151,17 +212,22 @@ def get_user(current_user, user_id):
 @admin_required
 def update_user(current_user, user_id):
     """Update a user's details"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON or no data provided"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in update user request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
+    
     db = get_db()
-    data = request.get_json()
     
     try:
-        # Convert user_id to integer
-        user_id_int = int(user_id)
-        
         # Find user by ID
-        user = User.query.get(user_id_int)
+        user_ref = db.collection('users').document(user_id)
+        user = user_ref.get()
         
-        if not user:
+        if not user.exists:
             return jsonify({"error": "User not found"}), 404
         
         # Fields that admins are allowed to update
@@ -172,23 +238,24 @@ def update_user(current_user, user_id):
             return jsonify({"error": "No valid fields to update"}), 400
         
         # Update user fields
-        for key, value in update_data.items():
-            setattr(user, key, value)
+        user_ref.update(update_data)
         
-        # Commit changes to database
-        db.session.commit()
+        # Get updated user
+        updated_user = user_ref.get()
+        updated_user_data = updated_user.to_dict()
+        updated_user_data['id'] = updated_user.id
+        
+        # Remove password for security
+        if 'password' in updated_user_data:
+            del updated_user_data['password']
         
         # Return updated user
         return jsonify({
             "message": "User updated successfully",
-            "user": user.to_dict()
+            "user": updated_user_data
         }), 200
         
-    except ValueError:
-        logger.error(f"Invalid user ID format: {user_id}")
-        return jsonify({"error": "Invalid user ID format"}), 400
     except Exception as e:
-        db.session.rollback()
         logger.error(f"Error updating user: {e}")
         return jsonify({"error": f"Error updating user: {str(e)}"}), 500
 
@@ -200,32 +267,28 @@ def delete_user(current_user, user_id):
     db = get_db()
     
     try:
-        # Convert user_id to integer
-        user_id_int = int(user_id)
-        
         # Check if user exists
-        user = User.query.get(user_id_int)
-        if not user:
+        user_ref = db.collection('users').document(user_id)
+        user = user_ref.get()
+        
+        if not user.exists:
             return jsonify({"error": "User not found"}), 404
         
+        # Get user's predictions
+        predictions_query = db.collection('predictions').where('user_id', '==', user_id).get()
+        
         # Delete user's predictions
-        Prediction.query.filter_by(user_id=user_id_int).delete()
+        for prediction in predictions_query:
+            prediction.reference.delete()
         
         # Delete user
-        db.session.delete(user)
-        
-        # Commit the changes
-        db.session.commit()
+        user_ref.delete()
         
         return jsonify({
             "message": "User and associated data deleted successfully"
         }), 200
         
-    except ValueError:
-        logger.error(f"Invalid user ID format: {user_id}")
-        return jsonify({"error": "Invalid user ID format"}), 400
     except Exception as e:
-        db.session.rollback()
         logger.error(f"Error deleting user: {e}")
         return jsonify({"error": f"Error deleting user: {str(e)}"}), 500
 
@@ -234,23 +297,50 @@ def delete_user(current_user, user_id):
 @admin_required
 def export_users(current_user):
     """Export all users to JSON"""
-    # Get all users using SQLAlchemy
-    users = User.query.all()
+    db = get_db()
     
-    # Convert user objects to dictionaries
-    user_list = [user.to_dict() for user in users]
+    try:
+        # Get all users
+        users_ref = db.collection('users')
+        users = list(users_ref.get())
+        
+        # Convert user objects to dictionaries
+        user_list = []
+        for user in users:
+            user_data = user.to_dict()
+            user_data['id'] = user.id
+            # Remove password for security
+            if 'password' in user_data:
+                del user_data['password']
+            user_list.append(user_data)
+        
+        return jsonify(user_list), 200
     
-    return jsonify(user_list), 200
+    except Exception as e:
+        logger.error(f"Error exporting users: {e}")
+        return jsonify({"error": f"Error exporting users: {str(e)}"}), 500
 
 @admin_bp.route('/export/predictions', methods=['GET'])
 @jwt_required
 @admin_required
 def export_predictions(current_user):
     """Export all predictions to JSON"""
-    # Get all predictions using SQLAlchemy
-    predictions = Prediction.query.all()
+    db = get_db()
     
-    # Convert prediction objects to dictionaries
-    prediction_list = [prediction.to_dict() for prediction in predictions]
+    try:
+        # Get all predictions
+        predictions_ref = db.collection('predictions')
+        predictions = list(predictions_ref.get())
+        
+        # Convert prediction objects to dictionaries
+        prediction_list = []
+        for prediction in predictions:
+            prediction_data = prediction.to_dict()
+            prediction_data['id'] = prediction.id
+            prediction_list.append(prediction_data)
+        
+        return jsonify(prediction_list), 200
     
-    return jsonify(prediction_list), 200
+    except Exception as e:
+        logger.error(f"Error exporting predictions: {e}")
+        return jsonify({"error": f"Error exporting predictions: {str(e)}"}), 500
