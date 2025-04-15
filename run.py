@@ -9,11 +9,12 @@ import logging
 from app import create_app
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create app
+# Create app - this is the application instance that Gunicorn will use
 app = create_app()
 
 # Route static files
@@ -31,10 +32,18 @@ def send_html(path):
         logger.error(f"Error loading template {path}.html: {e}")
         return render_template('index.html')
 
+# Health check endpoint for Render
+@app.route('/health')
+def health_check():
+    return {"status": "ok"}, 200
+
 if __name__ == '__main__':
     # Get port from environment variable with fallback to 5000
     port = int(os.environ.get('PORT', 5000))
     
+    # Only use debug mode when running directly, not through Gunicorn
+    debug_mode = os.environ.get('FLASK_ENV') != 'production'
+    
     # Run the application
-    logger.info(f"Starting SignAI backend on port {port}")
-    app.run(host='0.0.0.0', port=port, debug=True)
+    logger.info(f"Starting SignAI backend on port {port} (debug={debug_mode})")
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

@@ -15,12 +15,26 @@ logger = logging.getLogger(__name__)
 # Check if ML libraries are available
 ML_AVAILABLE = False
 try:
+    # First try to import numpy with the right version
+    import numpy as np
+    logger.info(f"Using NumPy version: {np.__version__}")
+    
+    # Then try to import TensorFlow
     import tensorflow as tf
+    logger.info(f"Using TensorFlow version: {tf.__version__}")
+    
+    # Finally try to import MediaPipe
     import mediapipe as mp
+    logger.info(f"Using MediaPipe version: {mp.__version__}")
+    
     ML_AVAILABLE = True
     logger.info("ML libraries found, machine learning features will be available")
-except ImportError:
-    logger.warning("ML libraries not found, machine learning features will be disabled")
+except ImportError as e:
+    logger.warning(f"ML libraries import error: {e}")
+    logger.warning("Machine learning features will be disabled")
+except Exception as e:
+    logger.error(f"Unexpected error loading ML libraries: {e}")
+    logger.warning("Machine learning features will be disabled")
 
 def create_app(config_class=DevelopmentConfig):
     """Application factory function to create and configure the Flask app"""
