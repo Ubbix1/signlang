@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: signai-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: PORT
+        value: 8000 
