@@ -1,10 +1,12 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.jwt_required import jwt_required, admin_required
 from app.database.db import get_db
+from app.database.mongodb import get_db as get_mongodb_db, DESCENDING
 from firebase_admin import firestore
 import logging
 from datetime import datetime, timedelta
 import json
+from firebase_admin import auth
 
 logger = logging.getLogger(__name__)
 admin_bp = Blueprint('admin', __name__)
@@ -168,40 +170,35 @@ def get_user(current_user, user_id):
     db = get_db()
     
     try:
-        # Get user by ID
-        user_ref = db.collection('users').document(user_id)
-        user = user_ref.get()
+        # Get user by ID from MongoDB
+        user = db.users.find_one({'firebase_uid': user_id})
         
-        if not user.exists:
+        if not user:
             return jsonify({"error": "User not found"}), 404
         
-        # Convert user to dictionary
-        user_data = user.to_dict()
-        user_data['id'] = user.id
+        # Convert ObjectId to string
+        user['_id'] = str(user['_id'])
         
         # Remove password for security
-        if 'password' in user_data:
-            del user_data['password']
+        if 'password' in user:
+            del user['password']
         
         # Get user's prediction count
-        predictions_query = db.collection('predictions').where('user_id', '==', user_id).get()
-        prediction_count = len(list(predictions_query))
-        user_data['prediction_count'] = prediction_count
+        prediction_count = db.prediction_logs.count_documents({'user_id': user_id})
+        user['prediction_count'] = prediction_count
         
         # Get user's recent predictions
-        recent_predictions_query = db.collection('predictions').where('user_id', '==', user_id).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(5)
-        recent_predictions = list(recent_predictions_query.get())
+        recent_predictions = list(db.prediction_logs.find({'user_id': user_id})
+                                 .sort('timestamp', DESCENDING)
+                                 .limit(5))
         
-        # Convert predictions to dictionary format
-        prediction_list = []
+        # Convert ObjectId to string in predictions
         for prediction in recent_predictions:
-            prediction_data = prediction.to_dict()
-            prediction_data['id'] = prediction.id
-            prediction_list.append(prediction_data)
+            prediction['_id'] = str(prediction['_id'])
         
-        user_data['recent_predictions'] = prediction_list
+        user['recent_predictions'] = recent_predictions
         
-        return jsonify(user_data), 200
+        return jsonify(user), 200
         
     except Exception as e:
         logger.error(f"Error retrieving user: {e}")
@@ -344,3 +341,168 @@ def export_predictions(current_user):
     except Exception as e:
         logger.error(f"Error exporting predictions: {e}")
         return jsonify({"error": f"Error exporting predictions: {str(e)}"}), 500
+
+@admin_bp.route('/users/<user_id>/status', methods=['PUT'])
+@jwt_required
+@admin_required
+def update_user_status(current_user, user_id):
+    """Update a user's status (active/suspended)"""
+    try:
+        data = request.get_json()
+        if not data or 'status' not in data:
+            return jsonify({"error": "Status field is required"}), 400
+        
+        # Validate status
+        status = data['status']
+        if status not in ['active', 'suspended']:
+            return jsonify({"error": "Invalid status. Must be 'active' or 'suspended'"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in update user status request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
+    
+    db = get_db()
+    
+    try:
+        # Find user by ID
+        user = db.users.find_one({'firebase_uid': user_id})
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Update user status
+        db.users.update_one(
+            {'firebase_uid': user_id},
+            {'$set': {'status': status, 'updated_at': datetime.utcnow()}}
+        )
+        
+        action_text = "suspended" if status == 'suspended' else "activated"
+        return jsonify({
+            "message": f"User has been {action_text} successfully",
+            "status": status
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error updating user status: {e}")
+        return jsonify({"error": f"Error updating user status: {str(e)}"}), 500
+
+@admin_bp.route('/users/<user_id>/reset-password', methods=['POST'])
+@jwt_required
+@admin_required
+def reset_user_password(current_user, user_id):
+    """Reset a user's password"""
+    try:
+        data = request.get_json()
+        if not data or 'method' not in data:
+            return jsonify({"error": "Method field is required"}), 400
+        
+        # Validate method
+        method = data['method']
+        if method not in ['email', 'manual']:
+            return jsonify({"error": "Invalid method. Must be 'email' or 'manual'"}), 400
+    except Exception as e:
+        logger.error(f"Error parsing JSON in reset password request: {e}")
+        return jsonify({"error": "Invalid JSON format"}), 400
+    
+    db = get_db()
+    
+    try:
+        # Find user by ID
+        user = db.users.find_one({'firebase_uid': user_id})
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Get Firebase Auth client
+        firebase_auth = current_app.firebase_auth
+        
+        if method == 'email':
+            # Send password reset email
+            try:
+                firebase_auth.generate_password_reset_link(user_id)
+                return jsonify({
+                    "message": "Password reset email sent successfully",
+                    "method": "email"
+                }), 200
+            except Exception as e:
+                logger.error(f"Error sending password reset email: {e}")
+                return jsonify({"error": "Failed to send password reset email"}), 500
+        else:  # manual reset
+            # Check if new password is provided
+            if 'new_password' not in data or not data['new_password']:
+                return jsonify({"error": "New password is required for manual reset"}), 400
+            
+            # Update password in Firebase Auth
+            try:
+                firebase_auth.update_user(user_id, password=data['new_password'])
+                
+                # Log the password change
+                db.users.update_one(
+                    {'firebase_uid': user_id},
+                    {'$set': {'password_reset_at': datetime.utcnow(), 'updated_at': datetime.utcnow()}}
+                )
+                
+                return jsonify({
+                    "message": "Password has been reset successfully",
+                    "method": "manual"
+                }), 200
+            except Exception as e:
+                logger.error(f"Error updating user password: {e}")
+                return jsonify({"error": "Failed to reset password"}), 500
+        
+    except Exception as e:
+        logger.error(f"Error resetting user password: {e}")
+        return jsonify({"error": f"Error resetting user password: {str(e)}"}), 500
+
+@admin_bp.route('/users/<user_id>/impersonate', methods=['POST'])
+@jwt_required
+@admin_required
+def impersonate_user(current_user, user_id):
+    """Generate a token to login as a specific user"""
+    db = get_db()
+    
+    try:
+        # Check if user exists
+        user = None
+        
+        # Try to get from MongoDB first
+        mongodb_db = get_mongodb_db()
+        user = mongodb_db.users.find_one({'firebase_uid': user_id})
+        
+        # If not found in MongoDB, try Firebase
+        if not user:
+            user_ref = db.collection('users').document(user_id)
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                return jsonify({"error": "User not found"}), 404
+            user = user_doc.to_dict()
+            user['id'] = user_doc.id
+        
+        # Generate a special admin token with both user and admin info
+        # Create custom token with claims
+        custom_token = auth.create_custom_token(
+            user_id, 
+            {
+                'admin_impersonation': True,
+                'original_admin_id': current_user['user_id'],
+                'expiration': int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+            }
+        )
+        
+        # Convert bytes to string if needed
+        if isinstance(custom_token, bytes):
+            custom_token = custom_token.decode('utf-8')
+        
+        return jsonify({
+            "message": f"Successfully generated token to login as {user.get('name', 'user')}",
+            "custom_token": custom_token,
+            "user": {
+                "id": user_id,
+                "name": user.get('name', ''),
+                "email": user.get('email', ''),
+                "role": user.get('role', 'user')
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error impersonating user: {e}")
+        return jsonify({"error": f"Error impersonating user: {str(e)}"}), 500

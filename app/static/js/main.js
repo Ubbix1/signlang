@@ -62,6 +62,19 @@ function checkAuthentication() {
             });
         }
     }
+    
+    // Check if this is an impersonation session
+    if (localStorage.getItem('is_impersonating') === 'true') {
+        const impersonationBanner = document.getElementById('impersonation-banner');
+        if (impersonationBanner) {
+            impersonationBanner.classList.remove('d-none');
+            
+            // Setup return button
+            document.getElementById('return-to-admin')?.addEventListener('click', function() {
+                returnToAdmin();
+            });
+        }
+    }
 
     // Load dashboard data if on dashboard
     if (currentPage === '/dashboard.html' && document.getElementById('dashboard-section')) {
@@ -325,11 +338,15 @@ function setupWebcam() {
     function startCamera() {
         if (streaming) return;
         
+        // Get selected camera option (front/back)
+        const cameraSelect = document.getElementById('cameraSelect');
+        const facingMode = cameraSelect.value === 'back' ? 'environment' : 'user';
+        
         const constraints = {
             video: {
                 width: { ideal: 640 },
                 height: { ideal: 480 },
-                facingMode: 'user'
+                facingMode: facingMode
             },
             audio: false
         };
@@ -948,26 +965,95 @@ function updateUsersTable(users) {
             '<span class="badge bg-primary">Admin</span>' : 
             '<span class="badge bg-secondary">User</span>';
         
+        // Check if the user is suspended
+        const isSuspended = user.status === 'suspended';
+        const statusBadge = isSuspended ? 
+            '<span class="badge bg-warning">Suspended</span>' : 
+            '<span class="badge bg-success">Active</span>';
+        
         row.innerHTML = `
             <td>${user.name}</td>
             <td>${user.email}</td>
-            <td>${roleBadge}</td>
+            <td>${roleBadge} ${statusBadge}</td>
             <td>${dateStr}</td>
             <td>
-                <button class="btn btn-sm btn-primary edit-user" data-id="${user._id}">
-                    <i class="fas fa-edit"></i>
-                </button>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item view-user" href="#" data-id="${user._id || user.id}"><i class="fas fa-eye me-2"></i>View Details</a></li>
+                        <li><a class="dropdown-item edit-user" href="#" data-id="${user._id || user.id}"><i class="fas fa-edit me-2"></i>Edit User</a></li>
+                        <li><a class="dropdown-item reset-password" href="#" data-id="${user._id || user.id}"><i class="fas fa-key me-2"></i>Reset Password</a></li>
+                        <li><a class="dropdown-item login-as-user" href="#" data-id="${user._id || user.id}"><i class="fas fa-user-secret me-2"></i>Login As User</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item ${isSuspended ? 'activate-user' : 'suspend-user'}" href="#" data-id="${user._id || user.id}">
+                            <i class="fas ${isSuspended ? 'fa-user-check' : 'fa-user-slash'} me-2"></i>${isSuspended ? 'Activate Account' : 'Suspend Account'}
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger delete-user" href="#" data-id="${user._id || user.id}"><i class="fas fa-trash-alt me-2"></i>Delete User</a></li>
+                    </ul>
+                </div>
             </td>
         `;
         
         tableBody.appendChild(row);
     });
     
-    // Setup edit buttons
+    // Setup action buttons
+    document.querySelectorAll('.view-user').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const userId = this.getAttribute('data-id');
+            viewUser(userId);
+        });
+    });
+    
     document.querySelectorAll('.edit-user').forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
             const userId = this.getAttribute('data-id');
             editUser(userId);
+        });
+    });
+    
+    document.querySelectorAll('.reset-password').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const userId = this.getAttribute('data-id');
+            resetUserPassword(userId);
+        });
+    });
+    
+    document.querySelectorAll('.login-as-user').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const userId = this.getAttribute('data-id');
+            loginAsUser(userId);
+        });
+    });
+    
+    document.querySelectorAll('.suspend-user').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const userId = this.getAttribute('data-id');
+            changeUserStatus(userId, 'suspended');
+        });
+    });
+    
+    document.querySelectorAll('.activate-user').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const userId = this.getAttribute('data-id');
+            changeUserStatus(userId, 'active');
+        });
+    });
+    
+    document.querySelectorAll('.delete-user').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const userId = this.getAttribute('data-id');
+            showDeleteConfirmation('user', userId);
         });
     });
 }
@@ -1297,4 +1383,396 @@ function logout() {
     
     // Redirect to login
     window.location.href = '/login.html';
+}
+
+/**
+ * View user details
+ */
+function viewUser(userId) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    // Fetch user details
+    fetch(`/api/admin/users/${userId}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to fetch user details');
+        }
+        return response.json();
+    })
+    .then(user => {
+        // Create and show user detail modal
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'user-detail-modal';
+        modal.setAttribute('tabindex', '-1');
+        
+        // Format creation date
+        const createdDate = user.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown';
+        
+        // Format status
+        const status = user.status === 'suspended' ? 
+            '<span class="badge bg-warning">Suspended</span>' : 
+            '<span class="badge bg-success">Active</span>';
+        
+        // Get prediction count (if available)
+        const predictionCount = user.prediction_count || 0;
+        
+        // Format recent predictions (if available)
+        let predictionsHtml = '<p>No recent predictions</p>';
+        if (user.recent_predictions && user.recent_predictions.length > 0) {
+            predictionsHtml = `
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Gesture</th>
+                                <th>Confidence</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${user.recent_predictions.map(pred => `
+                                <tr>
+                                    <td>${pred.gesture_label}</td>
+                                    <td>${pred.confidence}%</td>
+                                    <td>${new Date(pred.timestamp).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">User Details: ${user.name}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h5>Basic Information</h5>
+                                <dl class="row">
+                                    <dt class="col-sm-4">Name</dt>
+                                    <dd class="col-sm-8">${user.name}</dd>
+                                    
+                                    <dt class="col-sm-4">Email</dt>
+                                    <dd class="col-sm-8">${user.email}</dd>
+                                    
+                                    <dt class="col-sm-4">Role</dt>
+                                    <dd class="col-sm-8">${user.role === 'admin' ? '<span class="badge bg-primary">Admin</span>' : '<span class="badge bg-secondary">User</span>'}</dd>
+                                    
+                                    <dt class="col-sm-4">Status</dt>
+                                    <dd class="col-sm-8">${status}</dd>
+                                    
+                                    <dt class="col-sm-4">Created</dt>
+                                    <dd class="col-sm-8">${createdDate}</dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Activity Summary</h5>
+                                <div class="card text-center mb-3">
+                                    <div class="card-body">
+                                        <h3>${predictionCount}</h3>
+                                        <p class="text-muted mb-0">Total Predictions</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <h5>Recent Predictions</h5>
+                                ${predictionsHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary edit-user-btn" data-id="${user._id}">Edit User</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Show modal
+        const userDetailModal = new bootstrap.Modal(document.getElementById('user-detail-modal'));
+        userDetailModal.show();
+        
+        // Setup edit button in this modal
+        document.querySelector('.edit-user-btn').addEventListener('click', function() {
+            userDetailModal.hide();
+            
+            // Clean up the modal after hiding it
+            document.getElementById('user-detail-modal').addEventListener('hidden.bs.modal', function() {
+                document.getElementById('user-detail-modal').remove();
+                editUser(userId);
+            });
+        });
+        
+        // Clean up the modal when closed
+        document.getElementById('user-detail-modal').addEventListener('hidden.bs.modal', function() {
+            document.getElementById('user-detail-modal').remove();
+        });
+    })
+    .catch(error => {
+        console.error('Error fetching user details:', error);
+        alert('Failed to fetch user details');
+    });
+}
+
+/**
+ * Reset user password
+ */
+function resetUserPassword(userId) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    // Create and show password reset modal
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'password-reset-modal';
+    modal.setAttribute('tabindex', '-1');
+    
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reset User Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Choose how to reset the password:</p>
+                    <form id="password-reset-form">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="resetMethod" id="resetMethodEmail" value="email" checked>
+                            <label class="form-check-label" for="resetMethodEmail">
+                                Send password reset email to user
+                            </label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="resetMethod" id="resetMethodManual" value="manual">
+                            <label class="form-check-label" for="resetMethodManual">
+                                Set new password manually
+                            </label>
+                        </div>
+                        <div id="manual-password-container" class="mb-3 d-none">
+                            <label for="new-password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new-password" minlength="8">
+                            <div class="form-text">Password must be at least 8 characters</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirm-password-reset">Reset Password</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Show modal
+    const passwordResetModal = new bootstrap.Modal(document.getElementById('password-reset-modal'));
+    passwordResetModal.show();
+    
+    // Handle radio button change
+    document.querySelectorAll('input[name="resetMethod"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const manualContainer = document.getElementById('manual-password-container');
+            if (this.value === 'manual') {
+                manualContainer.classList.remove('d-none');
+            } else {
+                manualContainer.classList.add('d-none');
+            }
+        });
+    });
+    
+    // Handle password reset confirmation
+    document.getElementById('confirm-password-reset').addEventListener('click', function() {
+        const resetMethod = document.querySelector('input[name="resetMethod"]:checked').value;
+        let requestData = { 
+            method: resetMethod 
+        };
+        
+        if (resetMethod === 'manual') {
+            const newPassword = document.getElementById('new-password').value;
+            if (!newPassword || newPassword.length < 8) {
+                alert('Please enter a valid password (at least 8 characters)');
+                return;
+            }
+            requestData.new_password = newPassword;
+        }
+        
+        // Make API request to reset password
+        fetch(`/api/admin/users/${userId}/reset-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to reset password');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Hide modal
+            passwordResetModal.hide();
+            
+            // Show success message
+            alert(data.message || 'Password has been reset successfully');
+            
+            // Clean up the modal
+            document.getElementById('password-reset-modal').remove();
+        })
+        .catch(error => {
+            console.error('Error resetting password:', error);
+            alert('Failed to reset password');
+        });
+    });
+    
+    // Clean up the modal when closed
+    document.getElementById('password-reset-modal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('password-reset-modal').remove();
+    });
+}
+
+/**
+ * Change user status (activate/suspend)
+ */
+function changeUserStatus(userId, newStatus) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    // Confirmation message based on action
+    const actionText = newStatus === 'suspended' ? 'suspend' : 'activate';
+    
+    // Show confirmation
+    if (!confirm(`Are you sure you want to ${actionText} this user?`)) {
+        return;
+    }
+    
+    // Update user status
+    fetch(`/api/admin/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Failed to ${actionText} user`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Reload users
+        loadUsers();
+        
+        // Show success message
+        alert(data.message || `User ${actionText}d successfully`);
+    })
+    .catch(error => {
+        console.error(`Error ${actionText}ing user:`, error);
+        alert(`Failed to ${actionText} user`);
+    });
+}
+
+/**
+ * Login as a specific user (admin impersonation)
+ */
+function loginAsUser(userId) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    // Confirmation message
+    if (!confirm("Are you sure you want to login as this user? Your current session will be replaced.")) {
+        return;
+    }
+    
+    // Make API request to get impersonation token
+    fetch(`/api/admin/users/${userId}/impersonate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to generate login token');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Save original admin token for returning later
+        localStorage.setItem('admin_token', token);
+        localStorage.setItem('admin_user', localStorage.getItem('user'));
+        
+        // Store the custom token for exchange with Firebase Auth
+        const customToken = data.custom_token;
+        
+        // Exchange custom token for ID token
+        firebase.auth().signInWithCustomToken(customToken)
+            .then(userCredential => {
+                // Get user info and token
+                return userCredential.user.getIdToken();
+            })
+            .then(idToken => {
+                // Save the new token and user info
+                localStorage.setItem('access_token', idToken);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                localStorage.setItem('is_impersonating', 'true');
+                
+                // Redirect to dashboard
+                window.location.href = '/dashboard.html';
+            })
+            .catch(error => {
+                console.error('Error signing in with custom token:', error);
+                alert('Failed to login as user');
+            });
+    })
+    .catch(error => {
+        console.error('Error impersonating user:', error);
+        alert('Failed to login as user');
+    });
+}
+
+/**
+ * Return to admin account after impersonating a user
+ */
+function returnToAdmin() {
+    // Check if we are impersonating
+    if (localStorage.getItem('is_impersonating') !== 'true') {
+        return;
+    }
+    
+    // Restore admin token and user
+    localStorage.setItem('access_token', localStorage.getItem('admin_token'));
+    localStorage.setItem('user', localStorage.getItem('admin_user'));
+    
+    // Clean up
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+    localStorage.removeItem('is_impersonating');
+    
+    // Redirect to admin dashboard
+    window.location.href = '/dashboard.html';
 }

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.middleware.jwt_required import jwt_required
 from app.database.db import get_db, create_prediction, get_user_predictions, delete_prediction
 from app.inference.predict import predict_from_base64, predict_from_landmarks
+from app.database.mongodb import add_sample_predictions
 import logging
 import datetime
 import json
@@ -235,3 +236,26 @@ def delete_prediction_endpoint(current_user, prediction_id):
     except Exception as e:
         logger.error(f"Error deleting prediction: {e}")
         return jsonify({"error": f"Failed to delete prediction: {str(e)}"}), 500
+
+@prediction_bp.route('/add-samples', methods=['POST'])
+@jwt_required
+def add_sample_data(current_user):
+    """Add sample prediction data for testing"""
+    user_id = current_user['user_id']
+    
+    try:
+        # Get count from request or use default
+        data = request.get_json() or {}
+        count = data.get('count', 5)
+        count = min(count, 50)  # Limit to 50 samples max
+        
+        # Add sample predictions
+        sample_ids = add_sample_predictions(user_id, count)
+        
+        return jsonify({
+            "message": f"Added {len(sample_ids)} sample predictions",
+            "sample_ids": sample_ids
+        }), 200
+    except Exception as e:
+        logger.error(f"Error adding sample predictions: {e}")
+        return jsonify({"error": f"Failed to add sample predictions: {str(e)}"}), 500

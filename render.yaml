@@ -4,14 +4,18 @@ services:
     runtime: python
     plan: free
     buildCommand: bash build.sh
-    startCommand: gunicorn run:app --bind=0.0.0.0:$PORT --workers=2 --timeout=120
+    startCommand: gunicorn run:app --bind=0.0.0.0:$PORT --workers=2 --timeout=120 --log-level=debug
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.11
+        value: 3.10.13
       - key: PORT
         value: 8000
       - key: FLASK_ENV
         value: production
       - key: SESSION_SECRET
-        sync: false 
+        sync: false
+      - key: MONGODB_URI
+        value: mongodb+srv://drkgamer194:admin123@signai.uu3gif4.mongodb.net/signai?appName=signai
+      - key: FIREBASE_CREDENTIALS_PATH
+        value: signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json 

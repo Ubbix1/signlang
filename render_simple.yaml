@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: signai-backend-simple
+    runtime: python
+    plan: free
+    buildCommand: pip install flask gunicorn
+    startCommand: gunicorn simple_app:app --bind=0.0.0.0:$PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: PORT
+        value: 8000 

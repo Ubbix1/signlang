@@ -32,10 +32,7 @@ def send_html(path):
         logger.error(f"Error loading template {path}.html: {e}")
         return render_template('index.html')
 
-# Health check endpoint for Render
-@app.route('/health')
-def health_check():
-    return {"status": "ok"}, 200
+# Note: Health check endpoint is now defined in app/__init__.py
 
 if __name__ == '__main__':
     # Get port from environment variable with fallback to 5000

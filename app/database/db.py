@@ -1,6 +1,6 @@
 from flask import g, current_app
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth
 import logging
 import os
 import json
@@ -22,7 +22,7 @@ def connect_db():
     """
     try:
         # Initialize Firebase Admin SDK with credentials
-        cred_path = os.path.join(os.getcwd(), 'signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json')
+        cred_path = current_app.config.get('FIREBASE_CREDENTIALS_PATH')
         
         if not firebase_admin._apps:
             cred = credentials.Certificate(cred_path)
@@ -50,6 +50,40 @@ def initialize_db(app):
     Initialize database connection and teardown
     """
     app.teardown_appcontext(close_db)
+
+def verify_token(token):
+    """
+    Verify Firebase JWT token and return user information
+    
+    Args:
+        token (str): Firebase JWT token
+        
+    Returns:
+        dict: User information or None if invalid token
+    """
+    try:
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except Exception as e:
+        logger.error(f"Error verifying token: {e}")
+        return None
+        
+def get_user_by_uid(uid):
+    """
+    Get user information from Firebase Auth
+    
+    Args:
+        uid (str): Firebase user ID
+        
+    Returns:
+        dict: User information or None if not found
+    """
+    try:
+        user = auth.get_user(uid)
+        return user
+    except Exception as e:
+        logger.error(f"Error getting user by UID: {e}")
+        return None
 
 # User operations
 def create_user(email, password, name, role="user"):

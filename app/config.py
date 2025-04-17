@@ -10,6 +10,9 @@ class Config:
     # Firebase Settings
     FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json')
     
+    # MongoDB Settings
+    MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://drkgamer194:admin123@signai.uu3gif4.mongodb.net/?appName=signai')
+    
     # Model Settings
     MODEL_PATH = os.environ.get('MODEL_PATH', './model/sign_language_model.h5')
     MODEL_HF_REPO = os.environ.get('MODEL_HF_REPO', 'your-huggingface-repo/sign-language-model')
@@ -29,6 +32,7 @@ class ProductionConfig(Config):
     """Production configuration"""
     # In production, ensure all secrets are properly set in environment variables
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+    MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://drkgamer194:admin123@signai.uu3gif4.mongodb.net/?appName=signai')
     
     # Set more strict security settings for production
     JWT_COOKIE_SECURE = True
@@ -38,3 +42,4 @@ class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
     FIREBASE_CREDENTIALS_PATH = os.environ.get('TEST_FIREBASE_CREDENTIALS_PATH', 'signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json')
+    MONGODB_URI = os.environ.get('TEST_MONGODB_URI', 'mongodb+srv://drkgamer194:admin123@signai.uu3gif4.mongodb.net/test?appName=signai')

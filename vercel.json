@@ -11,9 +11,5 @@
             "src": "/(.*)",
             "dest": "run.py"
         }
-    ],
-    "env": {
-        "PYTHON_VERSION": "3.11"
-    },
-    "buildCommand": "bash build.sh"
+    ]
 }
