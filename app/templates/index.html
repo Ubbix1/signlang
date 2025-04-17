@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SignAI - Sign Language Recognition</title>
-    
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
-    
+
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/prism.css">
 </head>
+
 <body>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -46,7 +49,8 @@
             <div class="row">
                 <div class="col-lg-8 mx-auto">
                     <h1 class="display-4">Sign Language Recognition with AI</h1>
-                    <p class="lead mb-4">SignAI uses machine learning to recognize sign language gestures in real-time, bridging communication gaps for the deaf and hard of hearing community.</p>
+                    <p class="lead mb-4">SignAI uses machine learning to recognize sign language gestures in real-time,
+                        bridging communication gaps for the deaf and hard of hearing community.</p>
                     <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
                         <a href="/login.html" class="btn btn-outline-light btn-lg px-4 me-sm-3">Login</a>
                         <a href="/register.html" class="btn btn-light btn-lg px-4">Register</a>
@@ -65,27 +69,30 @@
                         <div class="card-body text-center">
                             <i class="fas fa-video fa-3x mb-3 text-primary"></i>
                             <h4 class="card-title">Real-time Recognition</h4>
-                            <p class="card-text">Our advanced AI model recognizes sign language gestures in real-time from your device's camera.</p>
+                            <p class="card-text">Our advanced AI model recognizes sign language gestures in real-time
+                                from your device's camera.</p>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="col-lg-4 mb-4">
                     <div class="card h-100">
                         <div class="card-body text-center">
                             <i class="fas fa-history fa-3x mb-3 text-primary"></i>
                             <h4 class="card-title">History Tracking</h4>
-                            <p class="card-text">Keep track of all your recognized gestures with a comprehensive history log.</p>
+                            <p class="card-text">Keep track of all your recognized gestures with a comprehensive history
+                                log.</p>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="col-lg-4 mb-4">
                     <div class="card h-100">
                         <div class="card-body text-center">
                             <i class="fas fa-mobile-alt fa-3x mb-3 text-primary"></i>
                             <h4 class="card-title">Mobile Integration</h4>
-                            <p class="card-text">Seamless integration with our Flutter mobile app for on-the-go sign language translation.</p>
+                            <p class="card-text">Seamless integration with our Flutter mobile app for on-the-go sign
+                                language translation.</p>
                         </div>
                     </div>
                 </div>
@@ -99,31 +106,35 @@
             <h2 class="text-center mb-5">How It Works</h2>
             <div class="row g-4">
                 <div class="col-md-3 text-center">
-                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3"
+                        style="width: 80px; height: 80px;">
                         <i class="fas fa-user-plus fa-2x"></i>
                     </div>
                     <h4>1. Register</h4>
                     <p>Create an account to get started with SignAI.</p>
                 </div>
-                
+
                 <div class="col-md-3 text-center">
-                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3"
+                        style="width: 80px; height: 80px;">
                         <i class="fas fa-camera fa-2x"></i>
                     </div>
                     <h4>2. Capture</h4>
                     <p>Use your device's camera to capture sign language gestures.</p>
                 </div>
-                
+
                 <div class="col-md-3 text-center">
-                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3"
+                        style="width: 80px; height: 80px;">
                         <i class="fas fa-brain fa-2x"></i>
                     </div>
                     <h4>3. Analyze</h4>
                     <p>Our AI model analyzes the gestures in real-time.</p>
                 </div>
-                
+
                 <div class="col-md-3 text-center">
-                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3"
+                        style="width: 80px; height: 80px;">
                         <i class="fas fa-check-circle fa-2x"></i>
                     </div>
                     <h4>4. Translate</h4>
@@ -140,7 +151,8 @@
             <div class="row align-items-center">
                 <div class="col-lg-6">
                     <h3>For Developers</h3>
-                    <p>SignAI provides a comprehensive RESTful API for integration with your applications. Our API endpoints allow you to:</p>
+                    <p>SignAI provides a comprehensive RESTful API for integration with your applications. Our API
+                        endpoints allow you to:</p>
                     <ul>
                         <li>Authenticate users securely with JWT</li>
                         <li>Send hand landmark data for prediction</li>
@@ -155,7 +167,7 @@
                             <span>Example API Request</span>
                         </div>
                         <div class="card-body">
-                            <pre class="mb-0 text-white"><code>
+                            <pre class="mb-0 text-white"><code class="language-bash">
 POST /api/prediction/predict
 Content-Type: application/json
 Authorization: Bearer &lt;your_token&gt;
@@ -167,6 +179,11 @@ Authorization: Bearer &lt;your_token&gt;
   "save_result": true
 }
                             </code></pre>
+                            <style>
+                                .language-bash {
+                                    background-color: transparent !important;
+                                }
+                            </style>
                         </div>
                     </div>
                 </div>
@@ -207,8 +224,10 @@ Authorization: Bearer &lt;your_token&gt;
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Custom JS -->
     <script src="/static/js/main.js"></script>
+    <script src="/static/js/prism.js"></script>
 </body>
+
 </html>
