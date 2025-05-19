@@ -1,3 +1,4 @@
+import traceback
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.jwt_required import jwt_required
 from app.database.db import get_db, get_user_by_id, get_user_predictions, delete_prediction
@@ -81,6 +82,7 @@ def update_profile(current_user):
 def get_history(current_user):
     """Get the current user's prediction history"""
     user_id = current_user['user_id']
+    print(user_id)
     
     # Get pagination parameters
     page = int(request.args.get('page', 1))
@@ -89,9 +91,10 @@ def get_history(current_user):
     try:
         # Get predictions for the user with pagination using Firestore
         result = get_user_predictions(user_id, page, per_page)
+        print(result);
         return jsonify(result), 200
     except Exception as e:
-        logger.error(f"Error retrieving prediction history: {e}")
+        logger.error("Exception: %s", traceback.format_exc())
         return jsonify({"error": f"Failed to retrieve prediction history: {str(e)}"}), 500
 
 @user_bp.route('/history/<prediction_id>', methods=['GET'])

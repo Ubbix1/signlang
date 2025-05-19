@@ -10,6 +10,72 @@ import json
 logger = logging.getLogger(__name__)
 prediction_bp = Blueprint('prediction', __name__)
 
+# @prediction_bp.route('/predict', methods=['POST'])
+# @jwt_required
+# def predict(current_user):
+#     """
+#     Make a prediction from an image
+#     Expects either base64 encoded image or hand landmarks
+#     """
+#     try:
+#         data = request.get_json()
+#         print(data)
+#         if not data or data == "":
+#             return jsonify({"error": "Invalid JSON or no data provided"}), 400
+#     except Exception as e:
+#         logger.error(f"Error parsing JSON in prediction request: {e}")
+#         return jsonify({"error": "Invalid JSON format"}), 400
+
+#     # 🔐 Ensure current_user has user_id
+#     user_id = current_user.get('user_id') if isinstance(current_user, dict) else None
+#     if not user_id:
+#         return jsonify({"error": "User ID not found in token"}), 401
+
+#     try:
+#         if 'label'in data:
+#             prediction_result = [data['label']];
+#         elif 'image' in data:
+#             prediction_result, status_code = predict_from_base64(data['image'])
+#         # 🎯 Predict from landmarksS
+#         # if 'landmarks' in data:
+#         #     landmarks = json.loads(data['landmarks']) if isinstance(data['landmarks'], str) else data['landmarks']
+#         #     prediction_result, status_code = predict_from_landmarks(landmarks)
+
+#         # # 🖼️ Predict from image
+#         # elif 'image' in data:
+#         #     prediction_result, status_code = predict_from_base64(data['image'])
+
+#         # else:
+#         #     return jsonify({"error": "Either 'image' or 'landmarks' is required"}), 400
+
+#         # if status_code != 200:
+#         #     return jsonify(prediction_result), status_code
+
+#         # # 📌 Add metadata
+#         # prediction_result['user_id'] = user_id
+
+#         # 🧠 Save to DB if enabled
+#         if data.get('save_result', True):
+#             try:
+#                 prediction_id = create_prediction(
+#                     user_id=user_id,
+#                     label=data.get['label'],
+#                     confidence=prediction_result['confidence'],
+#                     class_id=prediction_result.get('class_id'),
+#                     metadata=prediction_result
+#                 )
+#                 prediction_result['id'] = prediction_id
+#                 prediction_result['saved'] = True
+#             except Exception as e:
+#                 logger.error(f"Error saving prediction to database: {e}")
+#                 prediction_result['saved'] = False
+
+#         return jsonify(prediction_result), 200
+
+#     except Exception as e:
+#         logger.error(f"Unexpected error: {e}")
+#         return jsonify({"error": "Server error during prediction"}), 500
+
 @prediction_bp.route('/predict', methods=['POST'])
 @jwt_required
 def predict(current_user):
@@ -19,59 +85,61 @@ def predict(current_user):
     """
     try:
         data = request.get_json()
-        if not data:
+        if not data or data == "":
             return jsonify({"error": "Invalid JSON or no data provided"}), 400
     except Exception as e:
         logger.error(f"Error parsing JSON in prediction request: {e}")
         return jsonify({"error": "Invalid JSON format"}), 400
+
+    # 🔐 Ensure current_user has user_id
+    user_id = current_user.get('user_id') if isinstance(current_user, dict) else None
+    if not user_id:
+        return jsonify({"error": "User ID not found in token"}), 401
     
-    # Get user ID
-    user_id = current_user['user_id']
-    
-    # Check if we have landmarks or image
-    if 'landmarks' in data:
-        # Convert landmarks from JSON to list of floats
-        try:
+    # if not data.landmarks:
+    #     return jsonify({"No data"}), 402
+
+    try:
+        # 🎯 Predict from landmarks
+        if 'landmarks' in data:
             landmarks = json.loads(data['landmarks']) if isinstance(data['landmarks'], str) else data['landmarks']
-            
-            # Make prediction from landmarks
             prediction_result, status_code = predict_from_landmarks(landmarks)
-            
-        except Exception as e:
-            logger.error(f"Error processing landmarks: {e}")
-            return jsonify({"error": "Invalid landmarks data"}), 400
-            
-    elif 'image' in data:
-        # Make prediction from base64 image
-        prediction_result, status_code = predict_from_base64(data['image'])
-        
-    else:
-        return jsonify({"error": "Either 'image' or 'landmarks' is required"}), 400
-    
-    # Check if there was an error in prediction
-    if status_code != 200:
-        return jsonify(prediction_result), status_code
-    
-    # Add metadata to prediction result
-    prediction_result['user_id'] = user_id
-    
-    # Store prediction in database if requested
-    if data.get('save_result', True):
-        try:
-            # Extract relevant data from prediction_result
-            prediction_id = create_prediction(
-                user_id=user_id,
-                label=prediction_result['label'],
-                confidence=prediction_result['confidence'],
-                class_id=prediction_result.get('class_id'),
-                metadata=prediction_result
-            )
-            prediction_result['id'] = prediction_id
-        except Exception as e:
-            logger.error(f"Error saving prediction to database: {e}")
-            prediction_result['saved'] = False
-    
-    return jsonify(prediction_result), 200
+
+        # 🖼️ Predict from image
+        elif 'image' in data:
+            prediction_result, status_code = predict_from_base64(data['image'])
+
+        else:
+            return jsonify({"error": "Either 'image' or 'landmarks' is required"}), 400
+
+        if status_code != 200:
+            return jsonify(prediction_result), status_code
+
+        # 📌 Add metadata
+        prediction_result['user_id'] = user_id
+
+        # 🧠 Save to DB if enabled
+        if data.get('save_result', True):
+            try:
+                prediction_id = create_prediction(
+                    user_id=user_id,
+                    label=prediction_result['label'],
+                    confidence=prediction_result['confidence'],
+                    class_id=prediction_result.get('class_id'),
+                    metadata=prediction_result
+                )
+                prediction_result['id'] = prediction_id
+                prediction_result['saved'] = True
+            except Exception as e:
+                logger.error(f"Error saving prediction to database: {e}")
+                prediction_result['saved'] = False
+
+        return jsonify(prediction_result), 200
+
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return jsonify({"error": "Server error during prediction"}), 500
+
 
 @prediction_bp.route('/bulk-predict', methods=['POST'])
 @jwt_required

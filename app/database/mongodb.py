@@ -34,9 +34,9 @@ def connect_db():
             # Add default database name
             if '?' in mongodb_uri:
                 parts = mongodb_uri.split('?', 1)
-                mongodb_uri = f"{parts[0]}/signai?{parts[1]}"
+                mongodb_uri = f"{parts[0]}signai?{parts[1]}"
             else:
-                mongodb_uri = f"{mongodb_uri}/signai"
+                mongodb_uri = f"{mongodb_uri}signai"
             
             logger.info(f"Added default database name to MongoDB URI: signai")
         

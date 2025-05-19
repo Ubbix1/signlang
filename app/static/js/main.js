@@ -392,6 +392,8 @@ function setupWebcam() {
         stopCameraBtn.disabled = true;
         captureBtn.disabled = true;
     }
+
+    let save_image = "";
     
     function captureFrame() {
         if (!streaming) return;
@@ -406,6 +408,7 @@ function setupWebcam() {
         
         // Convert to base64
         const imageData = canvasElement.toDataURL('image/jpeg');
+        save_image = canvasElement.toDataURL('image/jpeg');
         
         // Send to API
         predictFromImage(imageData);
@@ -453,6 +456,7 @@ function setupWebcam() {
             
             // Store current prediction
             currentPrediction = data;
+            console.log("currentPrediction: ", currentPrediction);
             
             // Show result
             document.getElementById('prediction-result').classList.remove('d-none');
@@ -515,12 +519,18 @@ function setupWebcam() {
     }
     
     function savePrediction() {
-        if (!currentPrediction) return;
+        // console.log("currentPrediction: ", currentPrediction);
+        // if (!currentPrediction) return console.log("No prediction to save");
+
+        // if(currentPrediction.length !== 0) return alert("no data"); 
+
+        if(!save_image) return console.error("Error");
+        
+        console.log("save triggered");
         
         const token = localStorage.getItem('access_token');
         if (!token) return;
-        
-        // Make API request to save prediction
+    
         fetch('/api/prediction/predict', {
             method: 'POST',
             headers: {
@@ -528,9 +538,7 @@ function setupWebcam() {
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-                landmarks: currentPrediction.landmarks || [],
-                label: currentPrediction.label,
-                confidence: currentPrediction.confidence,
+                image: save_image || [],
                 save_result: true
             })
         })
@@ -541,11 +549,9 @@ function setupWebcam() {
             return response.json();
         })
         .then(data => {
-            // Show success message
             alert('Prediction saved successfully!');
             savePredictionBtn.disabled = true;
-            
-            // Reset current prediction
+            console.log(data);
             currentPrediction = null;
         })
         .catch(error => {
@@ -553,6 +559,7 @@ function setupWebcam() {
             alert('Failed to save prediction');
         });
     }
+    
 }
 
 /**
@@ -583,51 +590,61 @@ function setupHistoryTable() {
 /**
  * Load prediction history
  */
-function loadHistory(page = 1, search = '') {
+async function loadHistory(page = 1, search = '') {
     const token = localStorage.getItem('access_token');
     if (!token) return;
-    
+
     const historyTable = document.getElementById('history-table');
     if (!historyTable) return;
-    
+
     // Show loading state
     historyTable.innerHTML = '<tr><td colspan="4" class="text-center">Loading history...</td></tr>';
-    
-    // Fetch history
+
+    // Build URL
     let url = `/api/user/history?page=${page}&per_page=10`;
     if (search) {
         url += `&search=${encodeURIComponent(search)}`;
     }
-    
-    fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+        });
+
+        // Handle token expiration
+        if (response.status === 401) {
+            await refreshToken();
+            return loadHistory(page, search); // Retry after refreshing
         }
-    })
-    .then(response => {
+
         if (!response.ok) {
-            if (response.status === 401) {
-                refreshToken().then(() => loadHistory(page, search));
-                return;
-            }
-            throw new Error('Failed to fetch history');
+            throw new Error(`Failed to fetch history: ${response.status}`);
         }
-        return response.json();
-    })
-    .then(data => {
-        if (data.error) throw new Error(data.error);
-        
-        // Update table
+
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // Check data fields
+        if (!data.predictions || !data.pagination) {
+            throw new Error('Incomplete response from server');
+        }
+
+        // Update UI
         updateHistoryTable(data.predictions);
-        
-        // Update pagination
         updatePagination(data.pagination, page, search);
-    })
-    .catch(error => {
+
+    } catch (error) {
         console.error('Error loading history:', error);
         historyTable.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error: ${error.message}</td></tr>`;
-    });
+    }
 }
+
 
 /**
  * Update history table with prediction data
@@ -654,11 +671,11 @@ function updateHistoryTable(predictions) {
         const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
         
         row.innerHTML = `
-            <td>${prediction.label}</td>
+            <td>${prediction.label}</td>    
             <td>${prediction.confidence}%</td>
             <td>${dateStr}</td>
             <td>
-                <button class="btn btn-sm btn-danger delete-prediction" data-id="${prediction._id}">
+                <button class="btn btn-sm btn-danger delete-prediction" data-id="${prediction.id}">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
@@ -1116,11 +1133,11 @@ function editUser(userId) {
 /**
  * Save user changes
  */
-function saveUser() {
+function saveUser(userId) {
     const token = localStorage.getItem('access_token');
     if (!token) return;
     
-    const userId = document.getElementById('user-id').value;
+    // const userId = document.getElementById('user-id').value;
     const userData = {
         name: document.getElementById('user-name').value,
         email: document.getElementById('user-email').value,

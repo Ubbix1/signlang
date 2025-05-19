@@ -43,4 +43,5 @@ if __name__ == '__main__':
     
     # Run the application
     logger.info(f"Starting SignAI backend on port {port} (debug={debug_mode})")
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    app.run(host='0.0.0.0', port=port, debug=debug_mode) 
+    print("Starting SignAI backend on port 5000 (debug=True)")

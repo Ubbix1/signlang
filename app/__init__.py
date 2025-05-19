@@ -7,6 +7,7 @@ import importlib.util
 from app.config import DevelopmentConfig, ProductionConfig
 from app.database.db import initialize_db as initialize_firebase
 from app.database.mongodb import initialize_db as initialize_mongodb
+from app.inference.huggingface_loader import init_hf_dataset
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG,
@@ -80,6 +81,18 @@ def create_app(config_class=DevelopmentConfig):
     with app.app_context():
         app.ml_model = None  # Placeholder, will be loaded lazily
         app.ml_available = ML_AVAILABLE
+    
+    # Initialize HuggingFace dataset manager
+    app.hf_dataset_manager = None
+    try:
+        init_hf_dataset(app)
+    except Exception as e:
+        app.logger.error(f"Error initializing HuggingFace dataset: {e}")
+        
+    # Set default configuration if not already set
+    app.config.setdefault('HF_DATASET_NAME', 'NAM27/sign-language')
+    app.config.setdefault('HF_CACHE_DIR', './data/huggingface')
+    app.config.setdefault('HF_AUTOLOAD', False)
     
     # Register blueprints
     try:

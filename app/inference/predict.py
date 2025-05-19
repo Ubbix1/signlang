@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 if ML_AVAILABLE:
     import numpy as np
     import cv2
+    from PIL import Image
+    import io
     from app.inference.utils import preprocess_frame, extract_hand_landmarks
 else:
     logger.warning("ML libraries not available in predict.py, using mock implementation")
@@ -51,7 +53,7 @@ def predict_from_base64(base64_image):
         
     except Exception as e:
         logger.error(f"Error in predict_from_base64: {e}")
-        return {"error": "Error processing image"}, 500
+        return {"error": f"Error processing image: {str(e)}"}, 500
 
 def predict_from_frame(frame):
     """
@@ -80,10 +82,28 @@ def predict_from_frame(frame):
         }, 200
     
     try:
-        # Get model and mediapipe hands
-        model, hands = get_model_and_hands()
+        # Get model, hands, and processor (processor will be None with Keras model)
+        model, hands, _ = get_model_and_hands()
         
-        # Preprocess frame
+        # Check if we have mock objects
+        if isinstance(model, str):
+            logger.warning(f"Using mock model: model={model}")
+            import random
+            class_names = get_class_names()
+            if not class_names:
+                class_names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
+                               'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+            random_class = random.randint(0, len(class_names)-1)
+            
+            return {
+                "label": class_names[random_class],
+                "confidence": round(random.uniform(60.0, 95.0), 2),
+                "class_id": random_class,
+                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "note": "MOCK_MODEL - This is a mock prediction as model loading failed"
+            }, 200
+        
+        # Preprocess frame for hand detection
         processed_frame = preprocess_frame(frame)
         
         # Extract hand landmarks using MediaPipe
@@ -97,25 +117,24 @@ def predict_from_frame(frame):
                 "confidence": 0.0
             }, 200
         
-        # Flatten landmarks into feature vector
-        # Each landmark has x,y coordinates
-        features = np.array(landmarks).flatten()
+        # Process image for Keras model - resize to expected input size
+        input_size = (224, 224)  # Standard size for many vision models
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        resized_frame = cv2.resize(rgb_frame, input_size)
         
-        # If we have less than 2 hands, pad with zeros
-        expected_length = 21 * 2 * 2  # 21 landmarks with x,y for 2 hands
-        if len(features) < expected_length:
-            features = np.pad(features, (0, expected_length - len(features)))
-        elif len(features) > expected_length:
-            features = features[:expected_length]
+        # Normalize pixel values to [0, 1]
+        input_data = resized_frame.astype(np.float32) / 255.0
         
-        # Reshape for model input
-        features = features.reshape(1, -1)
+        # Add batch dimension
+        input_data = np.expand_dims(input_data, axis=0)
         
-        # Make prediction
-        predictions = model.predict(features)
+        # Run inference with Keras model
+        predictions = model.predict(input_data)
         
-        # Get highest probability class
+        # Get predicted class
         predicted_class = np.argmax(predictions[0])
+        
+        # Get confidence
         confidence = float(predictions[0][predicted_class])
         
         # Get class name
@@ -139,10 +158,10 @@ def predict_from_frame(frame):
 
 def predict_from_landmarks(landmarks):
     """
-    Make a prediction directly from hand landmarks
+    Make a prediction from hand landmarks
     
     Args:
-        landmarks: List of hand landmark coordinates
+        landmarks: List of hand landmark coordinates [x,y]
         
     Returns:
         dict: Prediction result containing label, confidence, etc.
@@ -150,57 +169,30 @@ def predict_from_landmarks(landmarks):
     # Check if ML is available
     if not ML_AVAILABLE:
         logger.warning("ML libraries not available, returning mock prediction")
-        # Return one of the class names at random for variety
-        import random
-        class_names = get_class_names()
-        random_class = random.randint(0, len(class_names)-1)
-        
         return {
-            "label": class_names[random_class],
-            "confidence": round(random.uniform(60.0, 95.0), 2),
-            "class_id": random_class,
+            "label": "Mock Prediction",
+            "confidence": 85.0,
+            "class_id": 0,
             "timestamp": datetime.datetime.utcnow().isoformat(),
             "note": "ML_DISABLED - This is a mock prediction as ML libraries are not installed"
         }, 200
-        
+    
     try:
-        # Get model
-        model, _ = get_model_and_hands()
+        # Create a blank image to draw landmarks on
+        img_size = 224  # Standard size for many vision models
+        blank_image = np.zeros((img_size, img_size, 3), dtype=np.uint8)
+        blank_image.fill(255)  # White background
         
-        # Flatten landmarks into feature vector
-        features = np.array(landmarks).flatten()
+        # Draw landmarks on the image
+        for i, landmark in enumerate(landmarks[:21]):  # Only use the first hand
+            x, y = int(landmark[0] * img_size), int(landmark[1] * img_size)
+            cv2.circle(blank_image, (x, y), 5, (0, 0, 255), -1)  # Red circles
+            if i > 0:  # Connect the dots
+                prev_x, prev_y = int(landmarks[i-1][0] * img_size), int(landmarks[i-1][1] * img_size)
+                cv2.line(blank_image, (prev_x, prev_y), (x, y), (0, 255, 0), 2)  # Green lines
         
-        # If we have less than 2 hands, pad with zeros
-        expected_length = 21 * 2 * 2  # 21 landmarks with x,y for 2 hands
-        if len(features) < expected_length:
-            features = np.pad(features, (0, expected_length - len(features)))
-        elif len(features) > expected_length:
-            features = features[:expected_length]
-        
-        # Reshape for model input
-        features = features.reshape(1, -1)
-        
-        # Make prediction
-        predictions = model.predict(features)
-        
-        # Get highest probability class
-        predicted_class = np.argmax(predictions[0])
-        confidence = float(predictions[0][predicted_class])
-        
-        # Get class name
-        class_names = get_class_names()
-        if predicted_class < len(class_names):
-            label = class_names[predicted_class]
-        else:
-            label = f"Class {predicted_class}"
-        
-        # Return prediction
-        return {
-            "label": label,
-            "confidence": round(confidence * 100, 2),
-            "class_id": int(predicted_class),
-            "timestamp": datetime.datetime.utcnow().isoformat()
-        }, 200
+        # Now use the image with drawn landmarks for prediction
+        return predict_from_frame(blank_image)
         
     except Exception as e:
         logger.error(f"Error in predict_from_landmarks: {e}")

@@ -1,0 +1,93 @@
+SIGNAI PROJECT OVERVIEW
+=====================
+
+Project Name: SignAI Backend
+Description: A backend API system for Sign Language Recognition using machine learning
+
+1. PROJECT STRUCTURE
+-------------------
+Root Directory:
+- app/                    # Main application directory
+  ├── api/               # API endpoints
+  ├── auth/              # Authentication related code
+  ├── database/          # Database models and connections
+  ├── inference/         # ML model inference code
+  ├── middleware/        # Request/response middleware
+  ├── routes/            # Route handlers
+  ├── static/            # Static files
+  ├── templates/         # HTML templates
+  ├── config.py          # Configuration settings
+  └── __init__.py        # Application initialization
+
+- venv/                  # Python virtual environment
+- .dist/                 # Distribution files
+- Various configuration and setup files
+
+2. TECHNICAL STACK
+-----------------
+- Backend Framework: Flask
+- Database: MongoDB Atlas
+- Authentication: Firebase
+- Machine Learning: TensorFlow, MediaPipe
+- Python Version: 3.10
+- Deployment: Render (with configuration)
+
+3. KEY FEATURES
+--------------
+- User Authentication via Firebase
+- Sign Language Gesture Recognition
+- Prediction History Management
+- Session Tracking
+- Admin Dashboard
+- API Endpoints for Frontend Integration
+
+4. DATABASE STRUCTURE
+--------------------
+MongoDB Collections:
+- users: Extended user profiles
+- prediction_logs: Gesture prediction history
+- sessions: User session information
+- error_logs: Application error tracking
+
+5. DEPLOYMENT
+------------
+The project is configured for deployment on Render with:
+- Build Command: bash build.sh
+- Start Command: gunicorn run:app
+- Environment variables for configuration
+
+6. DEVELOPMENT SETUP
+-------------------
+- Virtual environment management
+- Dependency management via requirements.txt
+- Development and production configurations
+- Debug and testing utilities
+
+7. API DOCUMENTATION
+-------------------
+- Available at /api_checker endpoint
+- RESTful API design
+- Authentication required for protected endpoints
+
+8. SECURITY FEATURES
+-------------------
+- Firebase Authentication
+- Session Management
+- Secure API endpoints
+- Environment variable configuration
+
+9. MONITORING AND LOGGING
+------------------------
+- Error logging system
+- Session tracking
+- Prediction history
+- Admin dashboard for monitoring
+
+10. DEVELOPMENT TOOLS
+--------------------
+- Debug mode configuration
+- Testing utilities
+- Development server setup
+- API testing tools
+
+This project represents a robust backend system for sign language recognition, combining modern web technologies with machine learning capabilities. It's designed to be scalable, secure, and maintainable, with comprehensive documentation and deployment configurations. 
