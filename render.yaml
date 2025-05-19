@@ -17,5 +17,5 @@ services:
         sync: false
       - key: MONGODB_URI
         value: mongodb+srv://drkgamer194:admin123@signai.uu3gif4.mongodb.net/signai?appName=signai
-      - key: FIREBASE_CREDENTIALS_PATH
-        value: signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json 
+      - key: FIREBASE_CREDENTIALS
+        sync: false 

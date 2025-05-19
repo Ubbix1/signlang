@@ -22,10 +22,18 @@ def connect_db():
     """
     try:
         # Initialize Firebase Admin SDK with credentials
-        cred_path = current_app.config.get('FIREBASE_CREDENTIALS_PATH')
+        cred_json = current_app.config.get('FIREBASE_CREDENTIALS')
         
         if not firebase_admin._apps:
-            cred = credentials.Certificate(cred_path)
+            if cred_json:
+                # Use credentials from environment variable
+                cred_dict = json.loads(cred_json)
+                cred = credentials.Certificate(cred_dict)
+            else:
+                # Fallback to file path for local development
+                cred_path = current_app.config.get('FIREBASE_CREDENTIALS_PATH')
+                cred = credentials.Certificate(cred_path)
+            
             firebase_admin.initialize_app(cred)
         
         # Get Firestore database

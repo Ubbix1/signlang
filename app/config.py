@@ -17,6 +17,7 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = 2592000  # 30 days
     
     # Firebase settings
+    FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_CREDENTIALS')
     FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'signai-web-app-firebase-adminsdk-fbsvc-ba097b499b.json')
     
     # MongoDB settings
