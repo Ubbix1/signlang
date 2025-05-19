@@ -106,6 +106,7 @@ ui-debug.log
 ui-debug.log.*
 .firebaserc
 firebase.json
+*-firebase-adminsdk-*.json
 
 # MongoDB
 mongodb/
